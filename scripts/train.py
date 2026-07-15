@@ -61,7 +61,6 @@ def main() -> None:
 
     args = TrainingArguments(
         output_dir=str(OUT_DIR / "checkpoints"),
-        overwrite_output_dir=True,
         num_train_epochs=3,
         per_device_train_batch_size=8,
         per_device_eval_batch_size=8,

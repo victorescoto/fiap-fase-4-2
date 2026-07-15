@@ -1,4 +1,4 @@
 streamlit>=1.35
 transformers>=4.44
-torch>=2.2
+torch>=2.6
 accelerate>=0.30

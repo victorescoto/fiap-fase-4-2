@@ -1,0 +1,14 @@
+{
+  "base": {
+    "perplexidade": 58.73,
+    "distinct-1": 0.531,
+    "distinct-2": 0.93,
+    "sobreposicao_8gramas_max": 0.0
+  },
+  "fine-tunado": {
+    "perplexidade": 31.52,
+    "distinct-1": 0.254,
+    "distinct-2": 0.783,
+    "sobreposicao_8gramas_max": 0.0
+  }
+}
