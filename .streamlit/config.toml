@@ -1,0 +1,8 @@
+[server]
+# O watcher do Streamlit varre os módulos do transformers e dispara imports
+# de modelos de visão que exigiriam torchvision (projeto é só texto).
+fileWatcherType = "none"
+headless = true
+
+[browser]
+gatherUsageStats = false
