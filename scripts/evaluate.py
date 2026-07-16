@@ -11,6 +11,7 @@ Métricas:
 import json
 import math
 import random
+import re
 from pathlib import Path
 
 import torch
@@ -31,8 +32,15 @@ PROMPTS = [
 ]
 
 
+FICHA_RE = re.compile(
+    r"BPM:\s*\d+\s*\nCompasso:\s*[\d/]+\s*\nAcordes:\s*[^\n]+\nLetra:\n?"
+)
+
+
 def build_prompt(genre: str, title: str) -> str:
-    return f"Gênero: {genre}\nTítulo: {title}\nLetra:\n"
+    # o modelo fine-tunado completa com a ficha rítmica (BPM/compasso/acordes)
+    # e depois a letra; o modelo base completa texto livre
+    return f"Gênero: {genre}\nTítulo: {title}\n"
 
 
 @torch.no_grad()
@@ -109,11 +117,13 @@ def main() -> None:
         for genre, title in PROMPTS:
             gens.extend(generate(model, tokenizer, build_prompt(genre, title)))
         overlap = max(max_ngram_overlap(g, corpus_ngrams) for g in gens)
+        ficha_ok = sum(1 for g in gens if FICHA_RE.search(g)) / len(gens)
         results[name] = {
             "perplexidade": round(ppl, 2),
             "distinct-1": round(distinct_n(gens, 1), 3),
             "distinct-2": round(distinct_n(gens, 2), 3),
             "sobreposicao_8gramas_max": round(overlap, 3),
+            "ficha_ritmica_valida": round(ficha_ok, 2),
         }
         print(f"\n===== Modelo {name} =====")
         for k, v in results[name].items():

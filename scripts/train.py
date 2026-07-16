@@ -1,10 +1,15 @@
 """Fine-tuning do GPT-2 em português com letras de música brasileira.
 
 Modelo base: pierreguillou/gpt2-small-portuguese
-Formato de cada exemplo:
+Formato de cada exemplo (a "ficha rítmica" — BPM, compasso e acordes — é
+amostrada por gênero: BPM/compasso de faixas típicas, acordes de progressões
+reais do Chordonomicon extraídas por scripts/prepare_chords.py):
 
     Gênero: pop
     Título: Meu Coração
+    BPM: 96
+    Compasso: 4/4
+    Acordes: C G Am F
     Letra:
     <letra>
     <|endoftext|>
@@ -14,6 +19,7 @@ Os exemplos são concatenados e divididos em blocos de BLOCK_SIZE tokens
 """
 
 import json
+import random
 from pathlib import Path
 
 from datasets import Dataset
@@ -26,15 +32,42 @@ from transformers import (
 )
 
 BASE_MODEL = "pierreguillou/gpt2-small-portuguese"
-DATA_PATH = Path(__file__).resolve().parent.parent / "data" / "letras_pt.jsonl"
-OUT_DIR = Path(__file__).resolve().parent.parent / "model"
+ROOT = Path(__file__).resolve().parent.parent
+DATA_PATH = ROOT / "data" / "letras_pt.jsonl"
+CHORDS_PATH = ROOT / "data" / "progressoes.json"
+OUT_DIR = ROOT / "model"
 BLOCK_SIZE = 512
 
+# Faixas de BPM típicas por gênero
+BPM_RANGES = {
+    "pop": (84, 124),
+    "rap": (78, 104),
+    "rock": (100, 148),
+    "r&b": (68, 100),
+    "country": (88, 132),
+    "variado": (80, 130),
+}
 
-def format_example(row: dict, eos: str) -> str:
+
+def sample_ficha(genre: str, pools: dict, rng: random.Random) -> tuple[int, str, str]:
+    lo, hi = BPM_RANGES.get(genre, (80, 130))
+    bpm = rng.randrange(lo, hi + 1, 2)
+    compasso = rng.choices(
+        ["4/4", "3/4", "6/8"],
+        weights=[0.9, 0.06, 0.04] if genre in ("country", "variado", "r&b") else [0.97, 0.02, 0.01],
+    )[0]
+    acordes = rng.choice(pools.get(genre) or pools["pop"])
+    return bpm, compasso, acordes
+
+
+def format_example(row: dict, eos: str, pools: dict, rng: random.Random) -> str:
+    bpm, compasso, acordes = sample_ficha(row["genre"], pools, rng)
     return (
         f"Gênero: {row['genre']}\n"
         f"Título: {row['title']}\n"
+        f"BPM: {bpm}\n"
+        f"Compasso: {compasso}\n"
+        f"Acordes: {acordes}\n"
         f"Letra:\n{row['lyrics']}{eos}"
     )
 
@@ -44,7 +77,9 @@ def main() -> None:
     model = AutoModelForCausalLM.from_pretrained(BASE_MODEL)
 
     rows = [json.loads(l) for l in DATA_PATH.open(encoding="utf-8")]
-    texts = [format_example(r, tokenizer.eos_token) for r in rows]
+    pools = json.loads(CHORDS_PATH.read_text(encoding="utf-8"))
+    rng = random.Random(42)
+    texts = [format_example(r, tokenizer.eos_token, pools, rng) for r in rows]
     ds = Dataset.from_dict({"text": texts}).train_test_split(test_size=0.05, seed=42)
 
     def tokenize(batch):
