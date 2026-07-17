@@ -4,4 +4,5 @@ __pycache__/
 .pytest_cache/
 data/letras_pt.jsonl
 model/
+entrega.txt
 .streamlit/secrets.toml
