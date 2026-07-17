@@ -34,7 +34,10 @@ def resolve_model_source() -> str:
         LOCAL_MODEL_DIR / "model.safetensors"
     ).exists():
         return str(LOCAL_MODEL_DIR)
-    return st.secrets.get("MODEL_ID", os.environ.get("MODEL_ID", DEFAULT_HUB_MODEL))
+    try:
+        return st.secrets["MODEL_ID"]
+    except Exception:  # sem secrets.toml ou sem a chave MODEL_ID
+        return os.environ.get("MODEL_ID", DEFAULT_HUB_MODEL)
 
 
 @st.cache_resource(show_spinner="Carregando o modelo…")

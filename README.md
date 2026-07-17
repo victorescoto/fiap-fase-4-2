@@ -41,6 +41,7 @@ Assim o modelo aprende a condicionar a geração ao gênero e ao título — que
 │   ├── train.py              # Fine-tuning com Transformers Trainer
 │   ├── evaluate.py           # Perplexidade, diversidade e originalidade
 │   └── push_to_hub.py        # Publica o modelo no HF Hub
+├── tests/                    # Testes unitários (pytest)
 ├── data/progressoes.json     # Pools de progressões por gênero
 ├── data/avaliacao.json       # Resultados da avaliação
 └── model/                    # Modelo fine-tunado (não versionado)
@@ -59,6 +60,15 @@ python scripts/evaluate.py          # métricas de qualidade e originalidade
 
 streamlit run app.py                # playground local
 ```
+
+### Testes
+
+```bash
+pip install pytest
+pytest
+```
+
+Cobrem a limpeza das letras, a extração de progressões do Chordonomicon, a amostragem/formato da ficha rítmica no treino, o parsing da ficha gerada e a resolução da origem do modelo no app (pasta local completa × HF Hub × variável `MODEL_ID`).
 
 ## ☁️ Deploy no Streamlit Cloud
 

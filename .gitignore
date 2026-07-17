@@ -1,6 +1,7 @@
 .venv/
 __pycache__/
 *.pyc
+.pytest_cache/
 data/letras_pt.jsonl
 model/
 .streamlit/secrets.toml
