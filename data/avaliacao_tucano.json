@@ -1,0 +1,16 @@
+{
+  "base": {
+    "perplexidade": 27.87,
+    "distinct-1": 0.684,
+    "distinct-2": 0.98,
+    "sobreposicao_8gramas_max": 0.0,
+    "ficha_ritmica_valida": 0.0
+  },
+  "fine-tunado": {
+    "perplexidade": 20.07,
+    "distinct-1": 0.453,
+    "distinct-2": 0.923,
+    "sobreposicao_8gramas_max": 0.0,
+    "ficha_ritmica_valida": 0.8
+  }
+}
