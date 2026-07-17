@@ -29,7 +29,10 @@ st.set_page_config(page_title="Compositor IA 🎵", page_icon="🎵", layout="wi
 
 
 def resolve_model_source() -> str:
-    if (LOCAL_MODEL_DIR / "config.json").exists():
+    # só usa a pasta local se ela estiver completa (config E pesos)
+    if (LOCAL_MODEL_DIR / "config.json").exists() and (
+        LOCAL_MODEL_DIR / "model.safetensors"
+    ).exists():
         return str(LOCAL_MODEL_DIR)
     return st.secrets.get("MODEL_ID", os.environ.get("MODEL_ID", DEFAULT_HUB_MODEL))
 

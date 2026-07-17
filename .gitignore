@@ -2,7 +2,5 @@
 __pycache__/
 *.pyc
 data/letras_pt.jsonl
-model/checkpoints/
-model/*.safetensors
-model/*.bin
+model/
 .streamlit/secrets.toml
