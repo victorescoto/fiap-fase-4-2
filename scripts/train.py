@@ -18,6 +18,7 @@ Os exemplos são concatenados e divididos em blocos de BLOCK_SIZE tokens
 (causal language modeling padrão).
 """
 
+import argparse
 import json
 import random
 from pathlib import Path
@@ -72,9 +73,31 @@ def format_example(row: dict, eos: str, pools: dict, rng: random.Random) -> str:
     )
 
 
+def parse_args() -> argparse.Namespace:
+    p = argparse.ArgumentParser(description=__doc__)
+    p.add_argument("--base-model", default=BASE_MODEL)
+    p.add_argument("--out-dir", default=str(OUT_DIR))
+    p.add_argument("--epochs", type=int, default=3)
+    p.add_argument("--batch-size", type=int, default=8)
+    p.add_argument("--grad-accum", type=int, default=2)
+    p.add_argument("--grad-checkpointing", action="store_true",
+                   help="reduz VRAM (necessário p/ modelos maiores na RTX 4060)")
+    p.add_argument("--optim", default="adamw_torch",
+                   help="use 'adafactor' p/ modelos maiores (menos VRAM)")
+    p.add_argument("--bf16", action="store_true", help="usa bf16 em vez de fp16")
+    return p.parse_args()
+
+
 def main() -> None:
-    tokenizer = AutoTokenizer.from_pretrained(BASE_MODEL)
-    model = AutoModelForCausalLM.from_pretrained(BASE_MODEL)
+    args_cli = parse_args()
+    out_dir = Path(args_cli.out_dir)
+    tokenizer = AutoTokenizer.from_pretrained(args_cli.base_model)
+    if tokenizer.pad_token is None:
+        tokenizer.pad_token = tokenizer.eos_token
+    model = AutoModelForCausalLM.from_pretrained(args_cli.base_model)
+    if args_cli.grad_checkpointing:
+        model.gradient_checkpointing_enable()
+        model.config.use_cache = False
 
     rows = [json.loads(l) for l in DATA_PATH.open(encoding="utf-8")]
     pools = json.loads(CHORDS_PATH.read_text(encoding="utf-8"))
@@ -95,15 +118,17 @@ def main() -> None:
     lm_ds = tokenized.map(group_texts, batched=True, batch_size=1000)
 
     args = TrainingArguments(
-        output_dir=str(OUT_DIR / "checkpoints"),
-        num_train_epochs=3,
-        per_device_train_batch_size=8,
-        per_device_eval_batch_size=8,
-        gradient_accumulation_steps=2,
+        output_dir=str(out_dir / "checkpoints"),
+        num_train_epochs=args_cli.epochs,
+        per_device_train_batch_size=args_cli.batch_size,
+        per_device_eval_batch_size=args_cli.batch_size,
+        gradient_accumulation_steps=args_cli.grad_accum,
         learning_rate=5e-5,
         warmup_ratio=0.05,
         weight_decay=0.01,
-        fp16=True,
+        optim=args_cli.optim,
+        fp16=not args_cli.bf16,
+        bf16=args_cli.bf16,
         eval_strategy="epoch",
         save_strategy="epoch",
         save_total_limit=1,
@@ -127,9 +152,9 @@ def main() -> None:
     metrics = trainer.evaluate()
     print("Métricas finais:", metrics)
 
-    trainer.save_model(str(OUT_DIR))
-    tokenizer.save_pretrained(str(OUT_DIR))
-    print(f"Modelo salvo em {OUT_DIR}")
+    trainer.save_model(str(out_dir))
+    tokenizer.save_pretrained(str(out_dir))
+    print(f"Modelo salvo em {out_dir}")
 
 
 if __name__ == "__main__":

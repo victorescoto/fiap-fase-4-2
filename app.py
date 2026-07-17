@@ -15,8 +15,13 @@ import streamlit as st
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
-LOCAL_MODEL_DIR = Path(__file__).resolve().parent / "model"
+ROOT = Path(__file__).resolve().parent
+LOCAL_MODEL_DIR = ROOT / "model"
+LOCAL_TUCANO_DIR = ROOT / "model_tucano"
 DEFAULT_HUB_MODEL = "victorescoto/gpt2-letras-musica-pt-br"
+
+GPT2_LABEL = "GPT-2 small · rápido"
+TUCANO_LABEL = "Tucano-630m · melhor texto"
 
 GENEROS = ["pop", "rap", "rock", "r&b", "country", "variado"]
 
@@ -28,26 +33,51 @@ FICHA_RE = re.compile(
 st.set_page_config(page_title="Compositor IA 🎵", page_icon="🎵", layout="wide")
 
 
+def _local_completo(model_dir: Path) -> bool:
+    return (model_dir / "config.json").exists() and (
+        model_dir / "model.safetensors"
+    ).exists()
+
+
+def _secret(key: str, default: str | None = None) -> str | None:
+    try:
+        return st.secrets[key]
+    except Exception:  # sem secrets.toml ou sem a chave
+        return os.environ.get(key, default)
+
+
 def resolve_model_source() -> str:
     # só usa a pasta local se ela estiver completa (config E pesos)
-    if (LOCAL_MODEL_DIR / "config.json").exists() and (
-        LOCAL_MODEL_DIR / "model.safetensors"
-    ).exists():
+    if _local_completo(LOCAL_MODEL_DIR):
         return str(LOCAL_MODEL_DIR)
-    try:
-        return st.secrets["MODEL_ID"]
-    except Exception:  # sem secrets.toml ou sem a chave MODEL_ID
-        return os.environ.get("MODEL_ID", DEFAULT_HUB_MODEL)
+    return _secret("MODEL_ID", DEFAULT_HUB_MODEL)
+
+
+def available_models() -> dict[str, str]:
+    """Modelos oferecidos no seletor: rótulo -> origem (pasta local ou HF Hub).
+
+    O GPT-2 está sempre disponível. O Tucano-630m só aparece se estiver
+    treinado localmente ou se TUCANO_MODEL_ID apontar para um repo no Hub
+    (no Streamlit Cloud gratuito ele não cabe na RAM, então fica de fora
+    por padrão).
+    """
+    modelos = {GPT2_LABEL: resolve_model_source()}
+    if _local_completo(LOCAL_TUCANO_DIR):
+        modelos[TUCANO_LABEL] = str(LOCAL_TUCANO_DIR)
+    else:
+        tucano_id = _secret("TUCANO_MODEL_ID")
+        if tucano_id:
+            modelos[TUCANO_LABEL] = tucano_id
+    return modelos
 
 
 @st.cache_resource(show_spinner="Carregando o modelo…")
-def load_model():
-    source = resolve_model_source()
+def load_model(source: str):
     tokenizer = AutoTokenizer.from_pretrained(source)
     model = AutoModelForCausalLM.from_pretrained(source)
     device = "cuda" if torch.cuda.is_available() else "cpu"
     model.to(device).eval()
-    return tokenizer, model, device, source
+    return tokenizer, model, device
 
 
 @torch.no_grad()
@@ -133,6 +163,14 @@ params = {
 
 col1, col2 = st.columns([1, 2])
 with col1:
+    modelos = available_models()
+    escolha_modelo = st.selectbox(
+        "Modelo",
+        list(modelos),
+        index=0,
+        help="O Tucano-630m escreve melhor, mas é ~5× mais pesado "
+        "(disponível quando treinado localmente ou configurado via secrets).",
+    )
     genero = st.selectbox("Gênero musical", GENEROS, index=0)
     titulo = st.text_input("Título da música", "Coração na Contramão")
     inicio = st.text_area(
@@ -147,7 +185,8 @@ with col2:
         if not titulo.strip():
             st.warning("Dê um título para a música!")
         else:
-            tokenizer, model, device, source = load_model()
+            source = modelos[escolha_modelo]
+            tokenizer, model, device = load_model(source)
             for i in range(1, num_versoes + 1):
                 with st.spinner(f"Compondo versão {i}…"):
                     ficha, letra = compor(

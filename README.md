@@ -9,7 +9,7 @@ Modelo generativo construído com **Hugging Face Transformers**: um GPT-2 em por
 | Etapa | Escolha |
 |---|---|
 | Tema | Geração de letras de música brasileira |
-| Modelo base | [`pierreguillou/gpt2-small-portuguese`](https://huggingface.co/pierreguillou/gpt2-small-portuguese) (GPT-2 124M pré-treinado em português) |
+| Modelos base | [`pierreguillou/gpt2-small-portuguese`](https://huggingface.co/pierreguillou/gpt2-small-portuguese) (124M, deploy) e [`TucanoBR/Tucano-630m`](https://huggingface.co/TucanoBR/Tucano-630m) (630M, melhor texto — seletor no app) |
 | Datasets | Letras: [`sebastiandizon/genius-song-lyrics`](https://huggingface.co/datasets/sebastiandizon/genius-song-lyrics), filtrado para `language == "pt"` via streaming (~12 mil letras) · Acordes: [`ailsntua/Chordonomicon`](https://huggingface.co/datasets/ailsntua/Chordonomicon) (progressões reais por gênero) |
 | Fine-tuning | Causal LM com `Trainer`, blocos de 512 tokens, 3 épocas, fp16, RTX 4060 |
 | Avaliação | Perplexidade (base × fine-tunado), diversidade (distinct-1/2) e originalidade (sobreposição de 8-gramas com o corpus) |
@@ -55,7 +55,12 @@ pip install -r requirements.txt datasets
 
 python scripts/prepare_dataset.py   # coleta ~12k letras em pt (streaming)
 python scripts/prepare_chords.py    # progressões de acordes por gênero
-python scripts/train.py             # fine-tuning (~25 min em uma RTX 4060)
+python scripts/train.py             # fine-tuning GPT-2 (~25 min em uma RTX 4060)
+
+# opcional: Tucano-630m (texto bem melhor; ~32 min na mesma GPU)
+python scripts/train.py --base-model TucanoBR/Tucano-630m --out-dir model_tucano \
+    --epochs 2 --batch-size 2 --grad-accum 8 --grad-checkpointing \
+    --optim adafactor --bf16
 python scripts/evaluate.py          # métricas de qualidade e originalidade
 
 streamlit run app.py                # playground local
@@ -86,3 +91,13 @@ Os números ficam em [data/avaliacao.json](data/avaliacao.json) após rodar `scr
 - **Ficha rítmica válida**: fração das gerações em que o modelo produz BPM/compasso/acordes no formato esperado.
 
 Os parâmetros de geração (temperatura, top-p, top-k, bloqueio de repetição) são ajustáveis no playground, permitindo explorar o compromisso entre coerência e criatividade.
+
+### GPT-2 small × Tucano-630m
+
+| Métrica (cada um vs sua base) | GPT-2-ft (124M) | Tucano-630m-ft |
+|---|---|---|
+| Perplexidade na validação | 58.7 → **31.4** | 27.9 → **20.1** |
+| Ficha rítmica válida | 100% | 80% (com retry no app) |
+| Sobreposição 8-gramas (originalidade) | 0.0 | 0.0 |
+
+O Tucano-630m produz frases gramaticais completas e narrativa coerente com o título; o GPT-2 small é mais fragmentado, porém 5× mais leve — é o que roda no Streamlit Cloud gratuito. O playground tem um **seletor de modelo**: o Tucano aparece quando treinado localmente (`model_tucano/`) ou quando o secret/env `TUCANO_MODEL_ID` aponta para um repo no Hub. Esse trade-off qualidade × custo de deploy faz parte da avaliação do trabalho.

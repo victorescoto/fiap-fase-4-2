@@ -42,3 +42,39 @@ def test_resolve_model_source_respeita_variavel_de_ambiente(tmp_path, monkeypatc
     monkeypatch.setattr(app, "LOCAL_MODEL_DIR", tmp_path)
     monkeypatch.setenv("MODEL_ID", "outro/modelo")
     assert app.resolve_model_source() == "outro/modelo"
+
+
+def _dir_completo(base, nome):
+    d = base / nome
+    d.mkdir()
+    (d / "config.json").write_text("{}")
+    (d / "model.safetensors").write_bytes(b"")
+    return d
+
+
+def test_seletor_sempre_oferece_gpt2(tmp_path, monkeypatch):
+    monkeypatch.setattr(app, "LOCAL_MODEL_DIR", tmp_path / "nao-existe")
+    monkeypatch.setattr(app, "LOCAL_TUCANO_DIR", tmp_path / "tambem-nao")
+    monkeypatch.delenv("MODEL_ID", raising=False)
+    monkeypatch.delenv("TUCANO_MODEL_ID", raising=False)
+    modelos = app.available_models()
+    assert modelos == {app.GPT2_LABEL: app.DEFAULT_HUB_MODEL}
+
+
+def test_seletor_inclui_tucano_local_quando_completo(tmp_path, monkeypatch):
+    gpt2 = _dir_completo(tmp_path, "model")
+    tucano = _dir_completo(tmp_path, "model_tucano")
+    monkeypatch.setattr(app, "LOCAL_MODEL_DIR", gpt2)
+    monkeypatch.setattr(app, "LOCAL_TUCANO_DIR", tucano)
+    modelos = app.available_models()
+    assert modelos[app.GPT2_LABEL] == str(gpt2)
+    assert modelos[app.TUCANO_LABEL] == str(tucano)
+
+
+def test_seletor_inclui_tucano_via_secret_no_cloud(tmp_path, monkeypatch):
+    monkeypatch.setattr(app, "LOCAL_MODEL_DIR", tmp_path / "nao-existe")
+    monkeypatch.setattr(app, "LOCAL_TUCANO_DIR", tmp_path / "tambem-nao")
+    monkeypatch.delenv("MODEL_ID", raising=False)
+    monkeypatch.setenv("TUCANO_MODEL_ID", "victorescoto/tucano-letras")
+    modelos = app.available_models()
+    assert modelos[app.TUCANO_LABEL] == "victorescoto/tucano-letras"

@@ -6,3 +6,4 @@ data/letras_pt.jsonl
 model/
 entrega.txt
 .streamlit/secrets.toml
+model_tucano/

@@ -8,6 +8,7 @@ Métricas:
    está decorando letras.
 """
 
+import argparse
 import json
 import math
 import random
@@ -97,6 +98,12 @@ def max_ngram_overlap(generated: str, corpus_ngrams: set, n: int = 8) -> float:
 
 
 def main() -> None:
+    p = argparse.ArgumentParser(description=__doc__)
+    p.add_argument("--ft-dir", default=str(FT_DIR), help="pasta do modelo fine-tunado")
+    p.add_argument("--base", default=BASE_MODEL, help="modelo base para comparação")
+    p.add_argument("--out", default=str(ROOT / "data" / "avaliacao.json"))
+    cli = p.parse_args()
+
     random.seed(42)
     rows = [json.loads(l) for l in DATA_PATH.open(encoding="utf-8")]
     random.shuffle(rows)
@@ -107,10 +114,12 @@ def main() -> None:
         tokens = r["lyrics"].split()
         corpus_ngrams.update(zip(*[tokens[i:] for i in range(8)]))
 
-    tokenizer = AutoTokenizer.from_pretrained(FT_DIR)
     results = {}
 
-    for name, source in [("base", BASE_MODEL), ("fine-tunado", FT_DIR)]:
+    for name, source in [("base", cli.base), ("fine-tunado", cli.ft_dir)]:
+        # cada modelo usa o próprio tokenizer (bases diferentes têm vocabulários
+        # diferentes; a perplexidade só é comparável dentro da mesma família)
+        tokenizer = AutoTokenizer.from_pretrained(source)
         model = AutoModelForCausalLM.from_pretrained(source).to(DEVICE)
         ppl = perplexity(model, tokenizer, val_texts)
         gens = []
@@ -133,7 +142,7 @@ def main() -> None:
         del model
         torch.cuda.empty_cache()
 
-    out = ROOT / "data" / "avaliacao.json"
+    out = Path(cli.out)
     out.write_text(json.dumps(results, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"\nResultados salvos em {out}")
 
